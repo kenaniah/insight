@@ -1,6 +1,13 @@
 <?php
 namespace Cache;
 
+/**
+ * Filesystem cache driver
+ *
+ * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
+ * @copyright Copyright (c) 2009, Kenaniah Cerny
+ */
 class Filesystem implements iCache {
 
 	protected $cache_path = "/tmp/";

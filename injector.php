@@ -7,6 +7,10 @@
  *
  * Injectors only accept objects and/or closures as valid properties.
  * Attempting to set a property to anything else will result in an error.
+ *
+ * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
+ * @copyright Copyright (c) 2009, Kenaniah Cerny
  */
 class Injector {
 

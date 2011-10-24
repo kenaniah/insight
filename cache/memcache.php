@@ -1,6 +1,14 @@
 <?php
 namespace Cache;
 
+/**
+ * Memcache cache driver
+ *
+ * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
+ * @copyright Copyright (c) 2009, Kenaniah Cerny
+ * @requires Memcached
+ */
 class Memcache implements iCache {
 
 	protected $prefix;

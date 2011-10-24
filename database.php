@@ -5,9 +5,8 @@
  * This class is built primarily for PostgreSQL 8.4+
  * Compatibility with other database types is not guaranteed
  *
- * @author Kenaniah Cerny <kenaniah@gmail.com>
- * @version 1.2.0
- * @license http://creativecommons.org/licenses/by/3.0/us/
+ * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
  * @copyright Copyright (c) 2009, Kenaniah Cerny
  * @requires Cache
  */

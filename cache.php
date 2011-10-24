@@ -2,6 +2,10 @@
 /**
  * Cache management class.
  * May be used to easily interact with a cache using multiple strategies
+ *
+ * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
+ * @copyright Copyright (c) 2009, Kenaniah Cerny
  */
 use Cache\Filesystem;
 use Cache\iCache;

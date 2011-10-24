@@ -1,6 +1,13 @@
 <?php
 namespace Cache;
 
+/**
+ * Cache interface definition
+ *
+ * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
+ * @copyright Copyright (c) 2009, Kenaniah Cerny
+ */
 interface iCache {
 
 	/**

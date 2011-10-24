@@ -11,9 +11,8 @@
  *   - Closures that construct objects upon retrieval
  *   - Constructing closures wrapped by $this->asShared() to ensure a global instance upon retrieval
  *
- * @author Kenaniah Cerny <kenaniah@gmail.com>
- * @version 1.0.2
- * @license http://creativecommons.org/licenses/by/3.0/us/
+ * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
  * @copyright Copyright (c) 2009, Kenaniah Cerny
  */
 class Registry {
