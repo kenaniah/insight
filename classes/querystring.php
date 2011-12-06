@@ -5,6 +5,7 @@
  * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
  * @license http://creativecommons.org/licenses/by-sa/3.0/
  * @copyright Copyright (c) 2009, Kenaniah Cerny
+ * @version 2011-12-06 13:00:00 PST
  */
 class QueryString {
 
@@ -26,6 +27,7 @@ class QueryString {
 	function setArray($array){
 
 		$this->__construct($array);
+		return $this;
 
 	}
 
@@ -44,6 +46,7 @@ class QueryString {
 	function setAppendedString($string){
 
 		$this->_appended_string = $string;
+		return $this;
 
 	}
 
@@ -100,49 +103,41 @@ class QueryString {
 	 */
 	protected function toString($url_encoded = true, $array = NULL, $full_url = ''){
 
-		if(is_null($array)) $array = $this->_vars;
+		//Reference to the class used for the anonymous function
+		$self = __CLASS__;
 
-		if(!count($array)) return $full_url . "?" . $this->_appended_string; //No query string
+		//Default key-value pairs to use if not provided
+		$array = is_null($array) ? $this->_vars : $array;
 
-		$first = true;
+		//Tracks an array of rendered key / value pairs
+		$pairs = array();
 
-		$output = "?";
+		//Used to recursively encode values
+		$deep_encode = function($array, $prefix = array()) use (&$deep_encode, &$pairs, $self){
 
-		foreach($array as $key => $val){
+			foreach($array as $key => $val):
 
-			if(is_null($val)) continue;
+				if(is_null($val)) continue;
 
-			if($first){
+				if(is_array($val)):
 
-				$first = false;
+					$deep_encode($val, array_merge($prefix, array($key)));
 
-			}else{
+				else:
 
-				$output .= $url_encoded ? "&amp;" : "&";
+					$val = urlencode($val);
+					$val = str_replace(array("%7B", "%7D"), array("{", "}"), $val);
+					$pairs[] = urlencode($self::buildArrayKey($prefix, $key))."=".$val;
 
-			}
-			//Preserve arrays
-			if(is_array($val)){
-				$first2 = true;
-				foreach($val as &$v):
-					$v = urlencode($v);
-					$v = str_replace(array("%7B", "%7D"), array("{", "}"), $v); //Don't replace as it may be used in Utils::replaceMacros()
-					if($first2){
-						$first2 = false;
-					}else{
-						$output .= $url_encoded ? "&amp;" : "&";
-					}
-					$output .= urlencode($key) . "[]=" . $v;
-				endforeach;
-			}else{
-				$val = urlencode($val);
-				$val = str_replace(array("%7B", "%7D"), array("{", "}"), $val); //Don't replace as it may be used in Utils::replaceMacros()
-				$output .= urlencode($key)."=".$val;
-			}
+				endif;
 
-		}
+			endforeach;
 
-		return $full_url . $output . $this->_appended_string;
+		};
+
+		$deep_encode($array);
+
+		return $full_url . "?" . implode($url_encoded ? "&amp;" : "&", $pairs) . $this->_appended_string;
 
 	}
 
@@ -255,6 +250,39 @@ class QueryString {
 	function qsOnly($array = array(), $url_encoded = true){
 
 		return $this->replace($array, $url_encoded, "");
+
+	}
+
+	/**
+	 * Returns an array tracking the dimensions found in an array
+	 * @param string $name Something like "name[foo][bar][]"
+	 * @return array
+	 */
+	static function parseArrayDimensions($string){
+
+		//Parse array dimensions
+		$tmp = preg_replace('/^([^\[]+)/', '[$1]', $string);
+		preg_match_all('/\[([^\[]*)\]/', $tmp, $matches);
+		return $matches[1];
+
+	}
+
+	/**
+	 * Returns a string name reconstructed from the given parts
+	 * @param mixed $prefix can be a string or array
+	 * @param mixed $name can be a string or array
+	 * @return string like "name[foo][bar][]"
+	 */
+	static function buildArrayKey($prefix, $name = null){
+
+		if(!is_array($prefix)) $prefix = self::parseArrayDimensions($prefix);
+		if(!is_null($name) && !is_array($name)) $name = self::parseArrayDimensions($name);
+		$parts = is_null($name) ? $prefix : array_merge($prefix, $name);
+
+		$out = array_shift($parts);
+		while(($val = array_shift($parts)) || isset($val)) $out .= "[" . $val . "]";
+
+		return $out;
 
 	}
 
