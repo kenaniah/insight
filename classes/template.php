@@ -35,6 +35,7 @@ class Template {
 	 * imported into it.
 	 * @param string $template Name of the template to render
 	 * @param array $vars Array of variables to be passed to the template
+	 * @return mixed Whatever the included template decides it wants to return
 	 */
 	function render($template, $vars = array()){
 
@@ -48,7 +49,7 @@ class Template {
 		extract($vars, EXTR_REFS|EXTR_OVERWRITE);
 
 		//Load the template
-		include "templates/" . $template . ".php";
+		return include "templates/" . $template . ".php";
 
 	}
 

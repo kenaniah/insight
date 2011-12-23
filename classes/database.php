@@ -125,6 +125,30 @@ class Database extends \PDO {
 	protected static $total_queries = 0;
 
 	/**
+	 * Tracks the query execution time for this connection
+	 * @var float
+	 */
+	protected $time = 0;
+
+	/**
+	 * Tracks the total execution time accross all connections
+	 * @var float
+	 */
+	protected static $total_time = 0;
+
+	/**
+	 * Human-readable connection details
+	 * @var string
+	 */
+	protected $string = "";
+
+	/**
+	 * Controlls whether or not the metadata schema should be used
+	 * @var boolean
+	 */
+	protected $use_meta_schema = false;
+
+	/**
 	 * Sets the connection configuration array. This must be set before using getInstance()
 	 * @param array $config
 	 * @see self::$config
@@ -152,6 +176,8 @@ class Database extends \PDO {
 
 		//Initialize the connection
 		parent::__construct($dsn, $username, $password, $params);
+
+		$this->string = "Connected to " . $username . "@" . $dsn;
 
 		//Change the error mode to always throw exceptions
 		$this->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -186,10 +212,14 @@ class Database extends \PDO {
 		if(isset($conn['host']) && $conn['host']):
 			$host = ";host=" . $conn['host'];
 		endif;
+		if(isset($conn['port']) && $conn['port']):
+			$host.= ";port=" . $conn['port'];
+		endif;
 
 		//Instantiate this connection
 		$db = new Database($conn['driver'].":dbname=".$conn['name'].$host, $conn['user'], $conn['pass']);
 		$db->instance_name = $name;
+		$db->use_meta_schema = !empty($conn['use_meta_schema']);
 
 		//Save to the connection pool
 		self::$connections[$name] = $db;
@@ -204,6 +234,13 @@ class Database extends \PDO {
 	 */
 	public function getInstanceName(){
 		return $this->instance_name;
+	}
+
+	/**
+	 * Returns whether or not this connection uses a meta schema
+	 */
+	public function usesMetaSchema(){
+		return $this->use_meta_schema;
 	}
 
 	/**
@@ -240,7 +277,7 @@ class Database extends \PDO {
 
 			//Output the statement and the error message if debugging is enabled
 			if($this->debug):
-				var_dump("Statement: \n" . $sql);
+				var_dump("Statement: \n" . str_replace("\r", "", $sql));
 				var_dump($this->errormsg());
 			endif;
 
@@ -267,29 +304,49 @@ class Database extends \PDO {
 		$this->num_queries++;
 		self::$total_queries++;
 
+		$debug = "";
+
 		//Output the statement and any parameters if debugging is enabled
 		if($this->debug):
-			var_dump("Statement:\n".$sql."\nParams: ".$this->fmt($params));
+			$debug .= "Statement:\n".str_replace("\r", "", $sql)."\nParams: ".$this->fmt((array) $params);
 		endif;
 
 		//Attempt to execute the statement
 		try {
 
+			$t1 = microtime(true);
 			$stmt = $this->prepare($sql);
 			$val = $stmt->execute((array) $params);
+			$t = microtime(true) - $t1;
+
+			$this->time += $t;
+			self::$total_time += $t;
+
+			if($this->debug) $debug .= "\nExecution: " . number_format($t * 1000, 2) . "ms";
 
 			//Did we receive an error from the database?
 			if($stmt->errorCode() != '00000'){
-				if($this->debug) var_dump($stmt->errormsg());
+				if($this->debug) $debug .= "\nError: " . $stmt->errormsg();
 				error_log($stmt->errormsg() . "\n" . print_r(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS), true));
 			}
+
+			if($this->debug) var_dump($debug);
 
 			if(!$val) return false;
 
 		} catch (PDOException $e){
 
-			//Did we receive an error from the database?
-			if($this->debug) var_dump($this->errormsg());
+			$t = microtime(true) - $t1;
+
+			$this->time += $t;
+			self::$total_time += $t;
+
+			if($this->debug):
+				$debug .= "\nExecution: " . number_format($t * 1000, 2) . "ms";
+				$debug .= "\nError: " . $stmt->errormsg();
+				var_dump($debug);
+			endif;
+
 			error_log($this->errormsg() . "\n" . print_r(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS), true));
 
 			//If inside a transaction, record the error and mark the transaction as failed
@@ -872,6 +929,20 @@ class Database extends \PDO {
 	 */
 	static function getTotalQueries(){
 		return self::$total_queries;
+	}
+
+	/**
+	 * Returns the total execution time in microseconds
+	 */
+	static function getTotalTime(){
+		return self::$total_time;
+	}
+
+	/**
+	 * Outputs basic connection details
+	 */
+	function __toString(){
+		return self::getInstanceName() . ": " . $this->string;
 	}
 
 }

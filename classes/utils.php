@@ -2,9 +2,8 @@
 /**
  * Utilities class
  *
- * @author Kenaniah Cerny <kenaniah@gmail.com>
- * @version 1.0.2
- * @license http://creativecommons.org/licenses/by/3.0/us/
+ * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
+ * @license http://creativecommons.org/licenses/by-sa/3.0/
  * @copyright Copyright (c) 2009, Kenaniah Cerny
  */
 class Utils {
@@ -199,27 +198,40 @@ class Utils {
 	}
 
 	/**
-	 * Presents a file download to the user and stops execution of the script
-	 * @param integer $file
-	 * @param string $name
-	 * @param string $mime
+	 * Outputs a file to the user and stops execution of the script.
+	 *
+	 * Supports partial downloads and rate buffering.
+	 *
+	 * @param integer $file Path to file to be downloaded
+	 * @param string $filename Filename to send
+	 * @param string $mime Mime type
+	 * @param boolean $inline Whether or not to send inline or as an attachment
 	 * @param integer $chunk the number of bytes per second to output
 	 */
-	static function fileDownload($file, $name, $mime, $chunk = null){
+	static function outputFile(array $params){
+
+		$file = $params['file'];
+		$filename = !empty($params['filename']) ? $params['filename'] : basename($file);
+		$mime = !empty($params['mime_type']) ? $params['mime_type'] : 'application/force-download';
+		$disposition = empty($params['inline']) ? 'attachment' : 'inline';
+
+		//Speed limit
+		$chunk = null;
+		if(!empty($params['chunk'])) $chunk = intval($params['chunk']);
 
 		//Open the file
-		if(!is_resource($file)) $file = fopen($file, 'r');
+		if(!is_resource($file)) $file = fopen($file, 'rb');
 
 		//Get filesize
 		$stats = fstat($file);
 		$size = $stats['size'];
 
 		//Send the file
-		ob_end_clean();
+		while(ob_get_level()) ob_end_clean();
 
 		//Set initial headers
 		header('Content-Type: ' . $mime);
-		header('Content-Disposition: attachment; filename="' . $name . '"');
+		header('Content-Disposition: '.$disposition.'; filename="' . $filename . '"');
 		header('Content-Transfer-Encoding: binary');
 		header('Accept-Ranges: bytes');
 		header('Connection: close');
@@ -253,7 +265,7 @@ class Utils {
 		header("Content-Length: " . $length, true);
 
 		if($chunk):
-			while($length > 0):
+			while($length > 0 && !connection_aborted()):
 				$read = $length > $chunk ? $chunk : $length;
 				$read = $read < $length ? $read : $length;
 				$length -= $read;
@@ -262,7 +274,7 @@ class Utils {
 				sleep(1);
 			endwhile;
 		else:
-			print fread($file, $length);
+			fpassthru($file);
 		endif;
 
 		exit;
@@ -366,7 +378,6 @@ class Utils {
 		if(array_key_exists('HTTP_IF_MODIFIED_SINCE', $_SERVER)):
 
 			$time = strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']);
-
 
 			//If not modified, return a 304 header
 			if($modtime <= $time):

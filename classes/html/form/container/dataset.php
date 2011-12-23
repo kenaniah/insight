@@ -1,12 +1,13 @@
 <?php
 namespace HTML\Form\Container;
 use HTML\Form\Field\Hidden;
-
 use Format\Format;
 use HTML\Form\Layout\Recordset;
 use HTML\Form\Field\FormField;
 use HTML\Form\iContainable;
 use HTML\Form\Container\Query;
+use \QueryString;
+use \Registry;
 /**
  * DataSet is a special form of repeater that transforms all children into
  * first-generation elements.
@@ -33,6 +34,18 @@ class DataSet extends Repeater implements \Countable {
 	 * @var boolean
 	 */
 	protected $enable_multisort = false;
+
+	/**
+	 * Tracks whether or not to provide CSV export capabilities
+	 * @var mixed false or export file name
+	 */
+	protected $enable_export = false;
+
+	/**
+	 * Name to use for file export
+	 * @var string
+	 */
+	protected $export_filename = null;
 
 	/**
 	 * Infromation used in order to paginate the dataset
@@ -77,6 +90,15 @@ class DataSet extends Repeater implements \Countable {
 	}
 
 	/**
+	 * Sets the filename to be used for exports
+	 * @param string $filename
+	 */
+	function setExportFilename($filename){
+		$this->export_filename = $filename;
+		return $this;
+	}
+
+	/**
 	 * Determines whether multi-sort should be enabled
 	 * @param boolean $enabled
 	 */
@@ -86,9 +108,28 @@ class DataSet extends Repeater implements \Countable {
 	}
 
 	/**
+	 * Determines whether exporting should be enabled
+	 * @param boolean
+	 * @param string $filename if provided, sets the export filename
+	 */
+	function enableExporting($enabled, $filename = null){
+		$this->enable_export = (boolean) $enabled;
+		if(!is_null($filename)) $this->setExportFilename($filename);
+		return $this;
+	}
+
+	/**
 	 * Outputs the DataSet in table format
 	 */
 	function __toString(){
+
+		//Handle data export requests
+		if($this->enable_export && !empty($_GET['export'])):
+
+			$this->exportData();
+			exit;
+
+		endif;
 
 		$t = $this->indent();
 
@@ -96,8 +137,9 @@ class DataSet extends Repeater implements \Countable {
 		$num_cols = 0;
 
 
-		//Output sortable button
+		//Output buttons
 		$out .= $this->renderSortableButton();
+		$out .= $this->renderExportButton();
 
 		$page = $this->pagination_info;
 
@@ -289,6 +331,7 @@ class DataSet extends Repeater implements \Countable {
 			endif;
 		endforeach;
 		if(!$output) return;
+		ob_start();
 ?>
 <button style="margin-bottom: 0.5em" class="event" data-click-handler="sortDataSet" data-click-args='{"which": "<?=$this->ensureElementID();?>"}' data-icons='{"primary": "ui-icon-carat-2-n-s"}'>Sorting Options</button>
 
@@ -327,6 +370,55 @@ class DataSet extends Repeater implements \Countable {
 	</table>
 </div>
 <?
+		$contents = ob_get_contents();
+		ob_end_clean();
+		return $contents;
+	}
+
+	protected function renderExportButton(){
+		if(!$this->enable_export) return;
+		$export_qs = new QueryString();
+		$export_qs->export = 1;
+		$config = Registry::get('config');
+		$path = $config['path'];
+		ob_start();
+		?>
+		<button style="margin-bottom: 0.5em" class="event" data-click-handler="function(){window.location='<?=$export_qs;?>';}">
+			<img src="<?=$path;?>images/16x16/export.png" /> Export to Excel
+		</button>
+		<?
+		$contents = ob_get_contents();
+		ob_end_clean();
+		return $contents;
+	}
+
+	/**
+	 * Outputs the dataset to a file.
+	 * @var string $filename the filename to use for the download
+	 * @var boolean $download whether or not to force a download of the exported file
+	 */
+	function exportData($filename = null, $download = true){
+
+		$filename = $filename ?: $this->export_filename ?: "export.csv";
+
+		//Prepare the file download
+		ob_end_clean();
+		header("Content-Type: text/csv");
+		header("Content-Disposition: ".($download ? 'attachment' : 'inline')."; filename=\"".$filename."\"");
+		$handle = fopen("php://output", "w");
+
+		//Ouput headers
+		$data = array();
+		foreach($this->proxy->getChildren() as $child) $data[] = $child->getLabel(false);
+		fputcsv($handle, $data);
+
+		foreach($this->getValue(Format::EXPORT) as $row) fputcsv($handle, $row);
+
+		//Close the file
+		fclose($handle);
+		exit;
+
+
 	}
 
 }

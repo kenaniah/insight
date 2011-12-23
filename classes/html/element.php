@@ -151,7 +151,7 @@ abstract class Element {
 		//Name prefixing support
 		if(!empty($attrs['name']) && $this->name_prefix):
 
-			$attrs['name'] = \Utils::buildArrayKey($this->name_prefix, $attrs['name']);
+			$attrs['name'] = self::buildArrayKey($this->name_prefix, $attrs['name']);
 
 		endif;
 

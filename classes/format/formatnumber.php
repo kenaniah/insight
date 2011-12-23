@@ -8,6 +8,11 @@ class FormatNumber extends Format {
 
 	protected $precision = 0;
 
+	protected $positive = 'positive';
+	protected $negative = 'negative';
+	protected $zero = 'zero';
+	protected $null = 'null';
+
 	/**
 	 * Sets the precision for all numbers
 	 * @param integer $precision
@@ -23,7 +28,7 @@ class FormatNumber extends Format {
 	 */
 	function raw($value){
 		$value = preg_replace("/[^0-9.-]/", "", $value);
-		if(!$value) return null;
+		if(!strlen($value)) return null;
 		return round($value, $this->precision);
 	}
 
@@ -34,13 +39,49 @@ class FormatNumber extends Format {
 	function html($value){
 
 		$value = $this->raw($value);
-		if(is_null($value)) return '';
-		$class = 'zero';
-		if($value > 0) $class = 'positive';
-		if($value < 0) $class = 'negative';
+		if(is_null($value)) return "<span class='number ".$this->null."'>-</span>";
+		$class = $this->zero;
+		if($value > 0) $class = $this->positive;
+		if($value < 0) $class = $this->negative;
 
 		return "<span class='number ".$class."'>".number_format($value, $this->precision)."</span>";
 
+	}
+
+	/**
+	 * Sets the CSS class to use for positive numbers
+	 * @param unknown_type $classname
+	 */
+	function setPositiveClass($classname){
+		$this->positive = $classname;
+		return $this;
+	}
+
+	/**
+	 * Sets the CSS class to use for negative numbers
+	 * @param unknown_type $classname
+	 */
+	function setNegativeClass($classname){
+		$this->negative = $classname;
+		return $this;
+	}
+
+	/**
+	 * Sets the CSS class to use for zero numbers
+	 * @param unknown_type $classname
+	 */
+	function setZeroClass($classname){
+		$this->zero = $classname;
+		return $this;
+	}
+
+	/**
+	 * Sets the CSS class to use for zero numbers
+	 * @param unknown_type $classname
+	 */
+	function setNullClass($classname){
+		$this->null = $classname;
+		return $this;
 	}
 
 }
