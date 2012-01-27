@@ -44,9 +44,7 @@ class Workflow {
 		if(is_null($injector)) $injector = Registry::get('injector');
 
 		//Alert all forms that they are NOT to clear their data upon submit
-		Form::$clear_on_submit = false;
-
-		//trigger_error("This port of the workflow class has yet to be tested.", E_USER_WARNING);
+		Form::clearOnSubmit(false);
 
 		//Session needs to default to the current directory
 		$this->session = $injector->session->getParent();
@@ -96,7 +94,7 @@ class Workflow {
 	function checkCurrentPage(){
 
 		foreach($this->pages as $page):
-			//var_dump($this->session->getChild($page)->getValidity());
+
 			$valid = $this->session->getChild($page)->getValidity();
 
 			if(!$valid && SCRIPT === $page) return;
@@ -139,7 +137,9 @@ class Workflow {
 	 * @return Session
 	 */
 	function getSession(){
+
 		return $this->session;
+
 	}
 
 }

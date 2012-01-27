@@ -1,5 +1,7 @@
 <?php
 namespace HTML\Form\Layout;
+use HTML\Form\Field\Hidden;
+
 use \HTML\Form\Field\FormField;
 use \HTML\Form\Container\Container;
 
@@ -19,6 +21,12 @@ class Horizontal extends LayoutManager {
 			$switched = in_array($class, $this->switch_positions);
 
 			$label = null;
+
+			if($child instanceof Hidden):
+				$out .= $child->indent() . $child;
+				continue;
+			endif;
+
 			if($child instanceof FormField):
 				$out .= $child->indent();
 				$label = $child->getLabel($this->use_full_labels);

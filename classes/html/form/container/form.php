@@ -8,6 +8,7 @@ use HTML\Form\iContainable;
  * Attributes can optionally be set on this form using the get/set attributes methods.
  */
 class Form extends Container {
+
 	/**
 	 * Instance of database connection
 	 * @var Database
@@ -18,7 +19,7 @@ class Form extends Container {
 	 * Tracks whether or not this form will clear the session data upon a successful submission
 	 * @var boolean
 	 */
-	static $clear_on_submit = true;
+	protected static $clear_on_submit = true;
 
 	/**
 	 * Unique id for this form
@@ -66,6 +67,14 @@ class Form extends Container {
 	protected $output_form_id = false;
 
 	/**
+	 * Sets whether or not the form should clear values on submission
+	 * @param boolean $boolean
+	 */
+	static function clearOnSubmit($boolean){
+		self::$clear_on_submit = (boolean) $boolean;
+	}
+
+	/**
 	 * Changed signature, $id represents the unique id for the form that will be used when detecting if this form was submitted.
 	 * Defaults to the base script's URL
 	 * @param string $id
@@ -73,6 +82,8 @@ class Form extends Container {
 	public function __construct($id = null){
 
 		parent::__construct();
+		$this->setAttribute('enctype', 'multipart/form-data');
+
 		$this->db = $this->injector->db;
 		$this->session =  $this->injector->session;
 
@@ -151,6 +162,7 @@ class Form extends Container {
 		$method = strtolower($this->getAttribute('method'));
 		$source = $method == 'post' ? $_POST : $_GET;
 
+		//Handle autocomplete fields
 		$this->handleAutocompletes();
 
 		//Determine whether or not this form has been submitted
@@ -168,8 +180,13 @@ class Form extends Container {
 				$this->session->set($source);
 			endif;
 
-			//Perform validation
+			//Set the form value
 			$this->setValue($source);
+
+			//Handle file upload fields (sets the value for those as well)
+			$this->handleFileUploads();
+
+			//Perform validation
 			$ok = $this->validate();
 
 			if(!$ok):
@@ -219,21 +236,8 @@ class Form extends Container {
 			if($data) $this->validate();
 		endif;
 
-
 		return $this;
 
-	}
-
-	/**
-	 * Handles AJAX fields that may be associated with the form
-	 */
-	public function handleAutocompletes(){
-		if(!empty($_POST['ajax_id'])):
-			foreach($this->getRecursiveChildren() as $child):
-				if($child instanceof \HTML\Form\Field\Autocomplete) $child->handle();
-			endforeach;
-		endif;
-		return $this;
 	}
 
 	/**

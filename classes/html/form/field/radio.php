@@ -47,8 +47,8 @@ class Radio extends FormField implements iCascadeProperties {
 	protected function updateGroup(){
 		$this->checkGroup();
 		foreach($this->group as $radio):
-			$item[] = $radio->getLabel();
-			self::updateGroupValue($radio, $this->value);
+			$radio->setValue($this->value, false);
+			$radio->setChecked(!is_null($this->value) && $this->value == $radio->getCheckedValue(), false);
 		endforeach;
 	}
 
@@ -62,10 +62,10 @@ class Radio extends FormField implements iCascadeProperties {
 	/**
 	 * Checks or unchecks the field based on the value provided.
 	 */
-	function setValue($value, $update = true){
+	function setValue($value, $cascade = true){
 		$this->checkGroup();
 		$this->value = $value;
-		if($update) $this->updateGroup();
+		if($cascade) $this->updateGroup();
 		return $this;
 	}
 
@@ -75,29 +75,17 @@ class Radio extends FormField implements iCascadeProperties {
 	}
 
 	/**
-	 * Sets the value for an individual radio button. Can be used to update
-	 * entire groups.
-	 * @param Radio $radio
-	 */
-	protected static function updateGroupValue(Radio $radio, $value){
-		$radio->setValue($value, false);
-		$radio->setChecked(!is_null($value) && $value == $radio->getCheckedValue());
-	}
-
-	/**
 	 * Forcefully checks or unchecks the field regardless of value
 	 */
-	function setChecked($boolean){
+	function setChecked($boolean, $cascade = true){
 		$this->checkGroup();
 		$this->checked = (boolean) $boolean;
 		if($this->checked):
 			$this->setAttribute('checked', 'checked');
-			foreach($this->group as $radio):
-				if($radio != $this) $radio->setChecked(false);
-			endforeach;
 		else:
 			$this->removeAttribute('checked');
 		endif;
+		if($cascade) $this->updateGroup();
 		return $this;
 	}
 
@@ -127,14 +115,13 @@ class Radio extends FormField implements iCascadeProperties {
 			self::$groups[$hash] = array();
 		endif;
 		if(!isset(self::$groups[$hash][$name])):
-			self::$groups[$hash][$name] = new \SplObjectStorage();
+			self::$groups[$hash][$name] = new \ObjectStorage;
 		endif;
 		$group = self::$groups[$hash][$name];
 
 		//Remove from old group
 		if($this->group && $this->group !== $group) $this->group->detach($this);
 		$this->group = $group;
-
 
 		//Attach this radio button to a group if it doesn't already exist
 		if(!$this->group->contains($this)) $this->group->attach($this);

@@ -1,5 +1,7 @@
 <?php
 namespace HTML\Form\Layout;
+use HTML\Form\Field\Hidden;
+
 use \HTML\Form\Field\FormField;
 use \HTML\Form\Container\Container;
 /**
@@ -34,6 +36,12 @@ class Table extends LayoutManager {
 		foreach($container->getChildren() as $child):
 			$t = $child->indent();
 			$child->indent += 2;
+
+			if($child instanceof Hidden):
+				$out .= $t . $child;
+				continue;
+			endif;
+
 
 			if(!$count) $out .=  $t . "<tr>";
 

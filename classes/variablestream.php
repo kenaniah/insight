@@ -35,9 +35,9 @@ class VariableStream {
 	 * @param integer $count
 	 */
 	public function stream_read($count) {
-		$res = substr($this->stream, $this->pos, $count);
-		$this->pos += strlen($res);
-		return $res;
+        $ret = substr($this->stream, $this->pos, $count);
+        $this->pos += strlen($ret);
+        return $ret;
 	}
 
 	/**
@@ -46,9 +46,12 @@ class VariableStream {
 	 * @return integer length of data written
 	 */
 	public function stream_write($data){
-		$len = strlen($data);
-		$this->stream = substr($this->stream, 0, $this->pos) . $data . substr($this->stream, $this->pos += $len);
-		return $len;
+        $l=strlen($data);
+        $this->stream =
+            substr($this->stream, 0, $this->pos) .
+            $data .
+            substr($this->stream, $this->pos += $l);
+        return $l;
 	}
 
 	/**
@@ -71,23 +74,16 @@ class VariableStream {
 	 * @param seektype $whence
 	 */
 	public function stream_seek($offset, $whence) {
-		$len = strlen($this->stream);
+        $l=strlen($this->stream);
 		switch ($whence) {
-			case SEEK_SET:
-				$new_pos = $offset;
-				break;
-			case SEEK_CUR:
-				$new_pos = $this->pos + $offset;
-				break;
-			case SEEK_END:
-				$new_pos = $len + $offset;
-				break;
-			default:
-				return false;
+            case SEEK_SET: $newPos = $offset; break;
+            case SEEK_CUR: $newPos = $this->pos + $offset; break;
+            case SEEK_END: $newPos = $l + $offset; break;
+            default: return false;
 		}
-		$res = $new_pos >=0 && $new_pos <= $len;
-		if($res) $this->pos = $new_pos;
-		return $res;
+        $ret = ($newPos >=0 && $newPos <=$l);
+        if ($ret) $this->pos=$newPos;
+        return $ret;
 	}
 
 	/**

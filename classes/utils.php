@@ -39,14 +39,12 @@ class Utils {
    /**
 	* Validates file upload and returns an array of error messages. If an empty array is returned, than
 	* file upload was successful
-	* @param string $file Name of file field
+	* @param string $data The data of the file upload
 	*/
-	static function checkUpload($file, $required=true){
+	static function checkUpload($data, $required=true){
 
 		//initialize errors
 		$errors = array();
-
-		$data = $_FILES[$file];
 
 		if(!$data):
 		$errors[] = 'File was not posted with the form (or the file posted was too big).';
@@ -80,11 +78,12 @@ class Utils {
 
 			if($errors) return $errors;
 
-			if(!$data['size']):
+		if(!$data['size'] && !empty($data['name'])):
 			$errors[] = 'The file uploaded was empty.';
 			endif;
 
 			return $errors;
+
 	}
 
 	/**
@@ -520,7 +519,8 @@ class Utils {
 				$parts = explode('.', $matches[1]);
 				$item = $array;
 				foreach($parts as $part):
-					$part = strtolower($part);
+					$item = array_change_key_case($item, CASE_LOWER);
+					$part = str_replace('+', ' ', strtolower($part));
 					if(array_key_exists($part, $item)):
 						if(is_array($item[$part])):
 							$item = $item[$part];
@@ -562,63 +562,72 @@ class Utils {
 	}
 
 	/**
-	 * Returns the $_POST array without PHP's character replacements.
-	 * PHP replaces characters 32, 46, 91, and 128 - 159 when reading external vars
+	 * Returns the external array without PHP's character replacements.
+	 * PHP replaces dots and underscores when reading external vars
 	 */
-	static function getRealPost($multidimensional = true){
+	static function getRealExternalFieldNames(array $input){
 
-		//Anonymous function to set array keys via recursion
-		$set_value = function(&$data, $keys, $val) use (&$set_value){
-			$key = array_shift($keys);
-			if(!count($keys)):
-				//If this is the last key, set it
-				if($key === ''):
-					$data[] = $val;
-				else:
-					$data[$key] = $val;
-				endif;
-				return;
-			endif;
-			if(!is_array($data) || !isset($data[$key]) || !is_array($data[$key])) $data[$key] = array();
-			$data = &$data[$key];
-			$set_value($data, $keys, $val);
+		$sanitize_keys = function($array) use (&$sanitize_keys){
+			$out = array();
+			foreach($array as $k => $v):
+				$k = str_replace(array('$dot$', '$space$'), array('.', ' '), $k);
+				if(is_array($v)) $out[$k] = $sanitize_keys($v);
+				else $out[$k] = $v;
+			endforeach;
+			return $out;
 		};
 
-		$data = array();
+		return $sanitize_keys($input);
 
-		//Read the POST input stream
-		$vars = explode("&", file_get_contents("php://input"));
-		foreach($vars as $var):
+	}
 
-			//Decode the input
-			list($key, $val) = explode("=", $var);
-			$key = urldecode($key);
-			$val = urldecode($val);
+	/**
+	 * Designed to fix the $_FILES array because PHP does something stupid when
+	 * arrays of files are uploaded.
+	 * @param array $input Should be the $_FILES superglobal (or something representing it)
+	 */
+	static function fixFilesArray(array $input){
 
-			//Are intentionally building a flat array?
-			if(!$multidimensional):
-				$data[$key] = $val;
-				continue;
-			endif;
+		$sanitize_files = function($input) use (&$sanitize_files){
 
-			//Check for array dimenisons
-			preg_match_all('/\[([^\]]*)\]/', $key, $matches);
-			if(!$matches[1]):
-				$data[$key] = $val;
-				continue;
-			endif;
+			$out = array();
 
-			//Parse the dimensions
-			$keys = $matches[1];
-			array_unshift($keys, substr($key, 0, strpos($key, '[')));
-
-			//Set the value at that key
-			$set_value($data, $keys, $val);
-
+			foreach($input as $k => $v):
+				if(!is_array($v)):
+					$out[$k] = $v;
+				elseif(isset($v['name']) && isset($v['type']) && isset($v['tmp_name']) && isset($v['error']) && isset($v['size']) && is_array($v['name'])):
+					foreach($v['name'] as $key => $value):
+						$out[$k][$key]['name'] = $v['name'][$key];
+						$out[$k][$key]['type'] = $v['type'][$key];
+						$out[$k][$key]['tmp_name'] = $v['tmp_name'][$key];
+						$out[$k][$key]['error'] = $v['error'][$key];
+						$out[$k][$key]['size'] = $v['size'][$key];
+					endforeach;
+				else:
+					$out[$k] = $sanitize_files($v);
+				endif;
 		endforeach;
 
-		return $data;
+			return $out;
+		};
 
+		return $sanitize_files($input);
+
+	}
+
+	/**
+	 * Detects and returns the array type
+	 * @param array $array
+	 * @return string index|assoc|sparse
+	 */
+	static function arrayType(array $array) {
+		$last = -1;
+		$type = 'index';
+		foreach($array as $k => $v):
+			if(!is_int($k)) return 'assoc';
+			if($k !== ++$last) $type = 'sparse';
+		endforeach;
+		return $type;
 	}
 
 }

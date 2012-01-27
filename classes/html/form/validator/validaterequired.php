@@ -1,5 +1,7 @@
 <?php
 namespace HTML\Form\Validator;
+use HTML\Form\Field\Hidden;
+
 use HTML\Form\Field\FormField;
 
 /**
@@ -13,7 +15,7 @@ class ValidateRequired extends Validator {
 	public function validate(FormField $field) {
 		$value = $field->getValue();
 
-		if(!strlen($value)):
+		if(!strlen($value) && !($field instanceof Hidden)):
 			$field->addValidationMessage('This is a required field.');
 			return false;
 		endif;

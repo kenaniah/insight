@@ -143,8 +143,9 @@ abstract class Element {
 
 	/**
 	 * Returns the full name, including namespace, of the field
+	 * @param boolean $replace_dots_and_spaces When true, replaces dots and spaces with other chars
 	 */
-	protected function getFullName() {
+	protected function getFullName($replace_dots_and_spaces = true) {
 
 		$attrs = $this->attributes;
 
@@ -153,6 +154,12 @@ abstract class Element {
 
 			$attrs['name'] = self::buildArrayKey($this->name_prefix, $attrs['name']);
 
+		endif;
+
+		//Replace dots and spaces to work around an input variable name limiation in PHP
+		if($replace_dots_and_spaces && !empty($attrs['name'])):
+			$replacements = array('.' => '$dot$', ' ' => '$space$');
+			$attrs['name'] = str_replace(array_keys($replacements), array_values($replacements), $attrs['name']);
 		endif;
 
 		return isset($attrs['name']) ? $attrs['name'] : null;

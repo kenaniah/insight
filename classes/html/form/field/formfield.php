@@ -70,14 +70,14 @@ abstract class FormField extends Element implements iContainable {
 	 * Creates a form field using the metadata from the field name
 	 * @param string $fqfn The fully qualified field name (eg. "contacts.first_name")
 	 */
-	public static function build($fqfn, \Injector $injector = null){
+	public static function build($fqfn, $meta = array(), \Injector $injector = null){
 
 		if(!$injector) $injector = \Registry::get('injector');
 
 		$meta_data = \Schema::getMetaData($injector, $fqfn);
 		if(!$meta_data) user_error("Field " . $fqfn . " could not be constructed.", E_USER_ERROR);
 
-		return self::_build($meta_data, $injector);
+		return self::_build(array_merge($meta_data, $meta), $injector);
 
 	}
 
@@ -101,7 +101,7 @@ abstract class FormField extends Element implements iContainable {
 				return \Data::get($meta_data['datasource']);
 			});
 
-		//Default to foriegn table name as the data source. Use the Data class equivalent if it exists.
+		//Default to foreign table name as the data source. Use the Data class equivalent if it exists.
 		elseif(!empty($meta_data['fk_table_name']) && method_exists($field, 'setOptions')):
 			if(!empty(\Data::$queries[$meta_data['fk_table_name']])):
 				$field->setOptions(function() use($meta_data){
@@ -114,17 +114,30 @@ abstract class FormField extends Element implements iContainable {
 				});
 			endif;
 
+		//Use the datasource provided in the meta data for Autocomplete sources
+		elseif(!empty($meta_data['datasource']) && method_exists($field, 'setHandler')):
+			$field->setHandler(function($term, $id, \Injector $injector) use ($meta_data){
+				$query = \Data::getQuery($meta_data['datasource']);
+				return $query
+					->setInjector($injector)
+					->andWhere("(name ILIKE '%'||?||'%' OR id = ?)")
+					->addParams(array($term, intval($id)))
+					->execute()
+						->getAll();
+			});
+
 		//Handle autocomplete sources
 		elseif(!empty($meta_data['fk_table_name']) && method_exists($field, 'setHandler')):
 			$field->setHandler(function($term, $id, \Injector $injector) use ($meta_data){
 				return $injector->db->getAll("
-					SELECT id as value, name as label
+					SELECT id, name
 					FROM " . $meta_data['fk_table_name'] . "
 					WHERE name ILIKE '%'||?||'%' OR id = ?
 					ORDER BY name",
 					array($term, intval($id))
 				);
 			});
+			$field->setAttribute('data-datasource', 'db-' . $meta_data['fk_table_name']);
 
 		endif;
 
@@ -191,13 +204,6 @@ abstract class FormField extends Element implements iContainable {
 			$this->ordering = $meta_data['ordering'];
 			$this->is_visible = $meta_data['is_visible'];
 
-			/*
-			if($meta_data['formatter_class']):
-				$class = '\Format\\' . $meta_data['formatter_class'];
-				$this->formatter = new $class;
-			endif;
-			*/
-
 			//-------------------------------------------
 			// Get ordered list of validators
 			//-------------------------------------------
@@ -222,7 +228,7 @@ abstract class FormField extends Element implements iContainable {
 
 		else:
 
-			$this->setAttribute('name', $name);
+			if(isset($name)) $this->setAttribute('name', $name);
 
 		endif;
 

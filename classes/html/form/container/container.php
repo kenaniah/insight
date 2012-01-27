@@ -2,9 +2,7 @@
 namespace HTML\Form\Container;
 
 use HTML\Form\Field\Checkbox;
-
 use HTML\Form\Layout\LayoutManager;
-
 use HTML\Form\Field\Radio;
 use HTML\Form\iCascadeProperties;
 use Format\Format;
@@ -40,7 +38,7 @@ abstract class Container extends \HTML\Element implements iContainable, iCascade
 
 	/**
 	 * Contains a list of children contained by this container
-	 * @var SplObjectStorage
+	 * @var ObjectStorage
 	 */
 	protected $children;
 
@@ -81,7 +79,7 @@ abstract class Container extends \HTML\Element implements iContainable, iCascade
 		$this->injector = is_null($injector) ? \Registry::get('injector') : $injector;
 
 		//Initialize the children object
-		$this->children = new \SplObjectStorage();
+		$this->children = new \ObjectStorage();
 
 		//Initialize the namespace and layoutManager objects, if set
 		if(isset($namespace)) $this->namespace = $namespace;
@@ -138,12 +136,49 @@ abstract class Container extends \HTML\Element implements iContainable, iCascade
 	}
 
 	/**
+	 * Adds a child to the container at the given index
+	 * @param iContainable $child
+	 * @param integer $index
+	 */
+	public function addChildAt(iContainable $child, $index){
+		$this->children->insertAt($child, $index);
+		return $this;
+	}
+
+	/**
+	 * Adds multiple children to this container at the given index
+	 * @param array $children
+	 * @param integer $index
+	 */
+	public function addChildrenAt(array $children, $index){
+		$this->children->insertAt($children, $index);
+		return $this;
+	}
+
+	/**
 	 * Removes a child from the container
 	 * @param iContainable $child
 	 */
 	public function removeChild(iContainable $child){
 		$this->children->detach($child);
 		return $this;
+	}
+
+	/**
+	 * Removes the child at the given index from the container
+	 * @param integer $index
+	 */
+	public function removeChildAt($index){
+		$this->children->removeAt($index);
+		return $this;
+	}
+
+	/**
+	 * Returns the child at the given index
+	 * @param integer $index
+	 */
+	public function getChildAt($index){
+		return $this->children->itemAtIndex($index);
 	}
 
 	/**
@@ -225,12 +260,16 @@ abstract class Container extends \HTML\Element implements iContainable, iCascade
 			//Children by definition are at least instances of iContainer
 			if($child instanceof FormField):
 
+				//Don't set the value of buttons
 				if($child instanceof Button) continue;
 
 				$val = $value;
 
 				//Set value for form fields
 				$name = $child->getName();
+
+				//Don't set a value if the element's name is null
+				if(!isset($name)) continue;
 
 				$dimensions = self::parseArrayDimensions($name);
 
@@ -279,7 +318,7 @@ abstract class Container extends \HTML\Element implements iContainable, iCascade
 				$name = $child->getName();
 				if(!$name) continue;
 				$data[$name] = $child->getValue($format_mode);
-			else:
+			elseif($child instanceof Container):
 				//Container
 				$ns = $child->getNamespace();
 				$vals = $child->getValue($format_mode);
@@ -301,7 +340,7 @@ abstract class Container extends \HTML\Element implements iContainable, iCascade
 	 */
 	public function __clone(){
 
-		$clone = new \SplObjectStorage();
+		$clone = new \ObjectStorage;
 		foreach($this->children as $child):
 			$clone->attach(clone $child);
 		endforeach;
@@ -409,6 +448,30 @@ abstract class Container extends \HTML\Element implements iContainable, iCascade
 	 */
 	function setLabel($label) {
 		$this->label = $label;
+		return $this;
+	}
+
+	/**
+	 * Handles AJAX fields that may be associated with the form
+	 */
+	function handleAutocompletes(){
+		if(!empty($_POST['ajax_id'])):
+			foreach($this->getRecursiveChildren() as $child):
+				if($child instanceof \HTML\Form\Field\Autocomplete) $child->handle();
+			endforeach;
+		endif;
+		return $this;
+	}
+
+	/**
+	 * Handles document uploads that may be associated with the form
+	 */
+	function handleFileUploads(){
+		if(!empty($_FILES)):
+			foreach($this->getRecursiveChildren() as $child):
+				if($child instanceof \HTML\Form\Field\Document) $child->handle();
+			endforeach;
+		endif;
 		return $this;
 	}
 

@@ -1,5 +1,7 @@
 <?php
 namespace HTML\Form\Container;
+use HTML\Form\Field\Link;
+
 use HTML\Form\Field\Hidden;
 use Format\Format;
 use HTML\Form\Layout\Recordset;
@@ -7,7 +9,7 @@ use HTML\Form\Field\FormField;
 use HTML\Form\iContainable;
 use HTML\Form\Container\Query;
 use \QueryString;
-use \Registry;
+
 /**
  * DataSet is a special form of repeater that transforms all children into
  * first-generation elements.
@@ -60,6 +62,12 @@ class DataSet extends Repeater implements \Countable {
 	public $is_paginated = false;
 
 	public $format_mode = Format::HTML;
+
+	/**
+	 * Tracks whether or not rows can be dynamically added or removed in form view
+	 * @var boolean
+	 */
+	protected $dynamic_add = true;
 
 	function __construct(Container $child = null, $namespace = null) {
 		$this->addClass(array('table', 'dataset'));
@@ -136,19 +144,36 @@ class DataSet extends Repeater implements \Countable {
 		$out = "";
 		$num_cols = 0;
 
-
 		//Output buttons
 		$out .= $this->renderSortableButton();
 		$out .= $this->renderExportButton();
 
 		$page = $this->pagination_info;
 
+		//Start the table
 		$out.= $t . "<table" . $this->outputAttributes() . ">";
 		if($this->caption) $out.= $t. "\t<caption>" . $this->caption . "</caption>";
+
+		//Add a remove link in form mode
+		if($this->format_mode == Format::FORM && $this->dynamic_add):
+
+			$remove_link = new Link(null, "Remove");
+			$remove_link
+				->setValue("Remove")
+				->setUrl("#")
+				->addClass("icon remove event")
+				->setAttribute("data-click-handler", "datasetRemoveRow")
+			;
+			$this->addChild($remove_link);
+
+		endif;
+
 		$out.= $t . "\t<thead>";
 		foreach($this->proxy->getChildren() as $child):
-			$num_cols++;
+
 			if($child instanceof Hidden) continue;
+
+			$num_cols++;
 
 			$tag = "<th>";
 			if(!empty($child->ordinal_position) && !empty($child->is_sortable)):
@@ -159,10 +184,38 @@ class DataSet extends Repeater implements \Countable {
 		endforeach;
 		$out.= $t . "\t</thead>";
 
+		//Add a replication row
+		if($this->format_mode == Format::FORM && $this->dynamic_add):
+
+			$out.= $t . "<tbody id='".$this->ensureElementID()."-add-item' class='hidden move-me'>";
+
+			$this->name_prefix[] = '$|$'.$this->ensureElementID().'$|$';
+
+			$value = $this->value;
+			$this->value = array();
+
+			$this->cascadeProperties();
+
+			$out .= Recordset::render($this, true);
+
+			array_pop($this->name_prefix);
+			$this->cascadeProperties();
+
+			$this->value = $value;
+
+			$out.= $t . "</tbody>";
+
+		endif;
 
 
 		$out.= $t . "\t<tfoot>";
 		$s = "";
+
+		//Recalculate the total number of records
+		if($this->format_mode == Format::FORM && $this->dynamic_add):
+			$this->value = array_values($this->value);
+			$page['total_records'] = count($this->value);
+		endif;
 
 		//Pagination info must be set when creating the Dataset in order for pagination to work
 		if(!empty($page) && $page['total_records'] != 1) $s = "s";
@@ -172,17 +225,29 @@ class DataSet extends Repeater implements \Countable {
 			. number_format($page['first_record']) . " - "
 			. number_format($page['last_record']) . " of "
 			. number_format($page['total_records']) . "</td>";
+			$count = $page['total_records'];
 		}elseif(!empty($page)){
 			$out.= "\n\t\t\t<td colspan='".$num_cols."'>"
 			. number_format($page['total_records']) . " Record{$s}</td>";
+			$count = $page['total_records'];
 		}
 
 		$out.= $t . "\t</tfoot>";
 		$out.= $t . "\t<tbody>";
+		$dynamic_add = $this->dynamic_add;
+		$this->dynamic_add = false;
 		$out.= parent::__toString();
+		$this->dynamic_add = $dynamic_add;
 		$out.= $t . "\t</tbody>";
 
 		$out.= $t . "</table>";
+
+		//Kill the remove link and add the new row button
+		if($this->format_mode == Format::FORM && $this->dynamic_add):
+			$this->removeChild($remove_link);
+			$out .= $t . '<button class="add-row event" data-count="'.$count.'" data-which="'.$this->ensureElementID().'" data-click-handler="datasetAddRow" data-icons=\'{"primary": "ui-icon-plus"}\'>Add Row</button>';
+		endif;
+
 		$out .= $this->outputPages();
 		return $out;
 	}
@@ -379,12 +444,10 @@ class DataSet extends Repeater implements \Countable {
 		if(!$this->enable_export) return;
 		$export_qs = new QueryString();
 		$export_qs->export = 1;
-		$config = Registry::get('config');
-		$path = $config['path'];
 		ob_start();
 		?>
 		<button style="margin-bottom: 0.5em" class="event" data-click-handler="function(){window.location='<?=$export_qs;?>';}">
-			<img src="<?=$path;?>images/16x16/export.png" /> Export to Excel
+			<img src="<?=WEB_PATH;?>images/16x16/export.png" /> Export to Excel
 		</button>
 		<?
 		$contents = ob_get_contents();

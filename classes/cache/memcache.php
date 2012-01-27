@@ -21,7 +21,9 @@ class Memcache implements iCache {
 	public $memcached;
 
 	function __construct(\Memcached $memcached){
+
 		$this->memcached = $memcached;
+
 	}
 
 	/**
@@ -31,7 +33,9 @@ class Memcache implements iCache {
 	 * @param string $prefix
 	 */
 	function setPrefix($prefix){
+
 		$this->prefix = $prefix;
+
 	}
 
 	function get($key){
@@ -49,15 +53,21 @@ class Memcache implements iCache {
 	}
 
 	function delete($key){
+
 		$this->memcached->delete($this->prefix . $key);
+
 	}
 
 	function flush(){
+
 		$this->memcached->flush();
+
 	}
 
 	function lastKeyExists(){
+
 		return !$this->memcached->getResultCode();
+
 	}
 
 }

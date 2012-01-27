@@ -15,7 +15,7 @@ class Recordset extends LayoutManager {
 		$out .=  $t . "<tr>";
 
 		//List of formatting classes that are automatically right-aligned
-		$right_aligned = array('FormatDate', 'FormatDateTime', 'FormatMoney', 'FormatNumber', 'FormatPercentage', 'FormatInterval');
+		$right_aligned = array('FormatDate', 'FormatDateTime', 'FormatMoney', 'FormatNumber', 'FormatChainedLink', 'FormatPercentage', 'FormatInterval');
 
 		foreach($container->getChildren() as $child):
 
@@ -27,10 +27,10 @@ class Recordset extends LayoutManager {
 			if(in_array($class, $right_aligned)) $extra = " class='right'";
 
 			if($child instanceof Hidden):
-				$out .= $child->__toString();
+				$out .= $t . $child;
 			else:
 				$out .= $t . "\t<td" . $extra . ">";
-				$out .= $child->__toString();
+				$out .= $child;
 				$out .= "</td>";
 			endif;
 

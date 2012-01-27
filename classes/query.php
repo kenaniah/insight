@@ -9,18 +9,19 @@
  * - is_visible		(boolean)	Whether or not to display this column in data sets
  * - field_name / table_name	When set together, use the meta settings of the field specified
  * - formatter		(Format)	Sets the instance to be used to format this field in data sets
- * - null 			(boolean)	Whether or not data can be null
  * - is_sortable 	(boolean)	Whether or not this column can be sorted on
  *
  * @author Kenaniah Cerny <kenaniah@gmail.com> https://github.com/kenaniah/insight
  * @license http://creativecommons.org/licenses/by-sa/3.0/
  * @copyright Copyright (c) 2009, Kenaniah Cerny
  */
+use HTML\Form\Field\Autocomplete;
+use HTML\Form\Container\Table;
 use HTML\Form\Field\Span;
 use HTML\Form\Field\FormField;
 use HTML\Form\Container\Container;
 use HTML\Form\Container\DataSet;
-class Query implements Countable {
+class Query implements Countable, IteratorAggregate {
 
 	//Database driver
 	protected $db;
@@ -39,6 +40,9 @@ class Query implements Countable {
 
 	//Dynamic sorting flag
 	protected $sortable = false;
+
+	//Controls whether or not columns are automatically labeled
+	protected $autolabel_columns = true;
 
 	//Pagination stuff
 	protected $paginate = false;
@@ -63,10 +67,19 @@ class Query implements Countable {
 
 	function __construct(Injector $injector = null){
 
-		if(is_null($injector)) $injector = Registry::get('injector');
+		$this->setInjector($injector ?: Registry::get('injector'));
+
+	}
+
+	/**
+	 * Sets the injector to be used by this query
+	 * @param Injector $injector
+	 */
+	function setInjector(Injector $injector){
 
 		$this->injector = $injector;
 		$this->db = $injector->db;
+		return $this;
 
 	}
 
@@ -100,6 +113,7 @@ class Query implements Countable {
 		//Get total result count
 		if($this->paginate){
 
+			//Transform this query into a count query
 			$old_parts = $this->parts;
 			$param = "*";
 			if($this->parts['group']):
@@ -109,17 +123,23 @@ class Query implements Countable {
 			$this->parts['group'] = null;
 			$this->parts['limit'] = null;
 			$this->parts['offset'] = null;
-			if($this->parts['_labels']) $this->parts['join'] = array_slice($this->parts['join'], 0, -1 * count($this->parts['_labels']));
 			$this->parts['order'] = array();
+			if($this->parts['_labels']):
+				//Remove label joins if present
+				$this->parts['join'] = array_slice($this->parts['join'], 0, -1 * count($this->parts['_labels']));
+			endif;
 			$this->paginate = false;
 
+			//Execute the count
 			$count = $this->execute();
 			$this->total_results = (integer) $count->getOne();
 			$this->pages = ceil($this->total_results / $old_parts['limit']);
 
+			//Revert the query back to its original form
 			$this->paginate = true;
 			$this->parts = $old_parts;
 
+			//Execute the original query
 			return $this->db->execute($this->__toString(), $this->getParams());
 
 		}
@@ -230,17 +250,20 @@ class Query implements Countable {
 
 	/**
 	 * Adds an ordering
+	 * @param string $key The column / expression to order by
+	 * @param string $dir The direction of the sort (ASC|DESC)
 	 */
-	function orderBy($key, $dir = 'asc'){
+	function orderBy($key, $dir = 'ASC'){
 
-		$dir = strtolower($dir) == 'desc' ? 'desc' : 'asc';
-		$this->parts['order'][] = array($key, strtoupper($dir));
+		$dir = strtoupper($dir) == 'DESC' ? 'DESC' : 'ASC';
+		$this->parts['order'][] = array($key, $dir);
 		return $this;
 
 	}
 
 	/**
-	 * Limits a query
+	 * Limits a query to a number of records
+	 * @param integer $num The number of records to limit to
 	 */
 	function limit($num){
 
@@ -271,7 +294,7 @@ class Query implements Countable {
 
 				if(in_array($v, $keys)):
 
-					$order = array_key_exists($k, $qs->order) && $qs->order[$k] == 'desc' ? 'desc' : 'asc';
+					$order = array_key_exists($k, $qs->order) && strtoupper($qs->order[$k]) == 'DESC' ? 'DESC' : 'ASC';
 					$this->parts['order'][] = array($v, strtoupper($order));
 
 				endif;
@@ -285,16 +308,15 @@ class Query implements Countable {
 	}
 
 	/**
-	 * Makes the query paginate according to the number of results per page
+	 * Makes the query paginate according to the number of results per page.
+	 * Automatically sets the LIMIT and OFFSET of the query.
 	 */
 	function paginate($per_page = 25){
 
-		$per_page = intval($per_page);
-		if($per_page > 0){
-			$this->paginate = true;
-		}
-		$this->parts['limit'] = $per_page;
-		$this->parts['offset'] = empty($_GET['page']) || $_GET['page'] < 1 ? 0 : ($_GET['page'] - 1) * $per_page;
+		$per_page = abs(intval($per_page));
+		$this->paginate = $per_page > 0;
+		$this->parts['limit'] = $per_page ?: null;
+		$this->parts['offset'] = $per_page ? empty($_GET['page']) || $_GET['page'] < 1 ? 0 : ($_GET['page'] - 1) * $per_page : null;
 
 		return $this;
 
@@ -364,7 +386,7 @@ class Query implements Countable {
 			$out .= "\nORDER BY";
 			$buffer = array();
 			foreach($this->parts['order'] as $order){
-				//Order by labels if the field is labeled
+				//Order by labels if the field was automatically labeled via expansion
 				if(is_numeric($order[0])):
 					//Get column at index
 					list($label, $col) = each(array_slice($this->parts['select'], $order[0] - 1, 1));
@@ -436,7 +458,7 @@ class Query implements Countable {
 	/**
 	 * Returns the entire column definition array
 	 */
-	function getColumnDefinitions(){
+	protected function getColumnDefinitions(){
 
 		$this->loadDefinitions();
 		return $this->parts['select'];
@@ -453,7 +475,7 @@ class Query implements Countable {
 		$keys = array();
 		$i = 0;
 		foreach($this->parts['select'] as $key => $col):
-			if(!isset($col['meta']['display']) || $col['meta']['display'] !== false) $keys[] = $i + 1;
+			if(!isset($col['meta']['is_visible']) || $col['meta']['is_visible'] !== false) $keys[] = $i + 1;
 			$i++;
 		endforeach;
 		return $keys;
@@ -541,7 +563,22 @@ class Query implements Countable {
 			foreach($tables as $t):
 				$alias = array_search($t, $names) ?: $t; //Get the table's alias
 				foreach($this->definitions[$t] as $field => $data):
-					$fields[] = array($alias . "." . $field, $data['label'] ?: $field, 'meta' => $data);
+
+					$label = $data['label'] && $this->autolabel_columns ? $data['label'] : $field;
+
+					//Hide certain fields that are automatically selected in star expansion
+					if(in_array($data['field_name'], Schema::getIgnoredColumns())):
+						$data['is_visible'] = false;
+					endif;
+
+					if($data['field_name'] == "id"):
+						$label = $alias . ".id";
+						$data['field_class'] = 'Hidden';
+						$data['is_visible'] = true;
+					endif;
+
+					$fields[] = array($alias . "." . $field, $label, 'meta' => $data);
+
 				endforeach;
 			endforeach;
 
@@ -611,7 +648,7 @@ class Query implements Countable {
 			endif;
 
 			//Set the column alias
-			if(!isset($col[1])) $col[1] = $column['label'];
+			if(!isset($col[1]) && $this->autolabel_columns) $col[1] = $column['label'];
 
 		endforeach;
 
@@ -631,7 +668,7 @@ class Query implements Countable {
 		$this->parts['select'] = $reduced;
 
 		//Expand dropdown columns to also return their name
-		$classes = array('Select');
+		$classes = array('Select', 'Autocomplete');
 		foreach($this->parts['select'] as &$col):
 
 			if(!isset($col['meta']['field_class'])) continue;
@@ -692,14 +729,17 @@ class Query implements Countable {
 			if(!empty($meta['label_for'])) continue;
 			if(!$meta || !isset($meta['schema_name'])):
 				//Build a span field if no metadata was found
-				$field = new Span($f);
+				$field_class = "Span";
+				if(!empty($meta['field_class'])) $field_class = $meta['field_class'];
+				$field_class = "HTML\\Form\\Field\\" . $field_class;
+				$field = new $field_class($f);
 				$field->setLabel($col[1]);
 				if(isset($meta['formatter'])) $field->setFormatter($meta['formatter']);
 				$fields[] = $field;
 				continue;
 			endif;
 			if(isset($meta['is_visible']) && !$meta['is_visible']) continue;
-			$field = FormField::build($meta['schema_name'] . '.' . $meta['table_name'] . '.' . $meta['field_name']);
+			$field = FormField::build($meta['schema_name'] . '.' . $meta['table_name'] . '.' . $meta['field_name'], $meta ?: array());
 			$field->setLabel($col[1]);
 			$field->setName($f);
 			if(isset($meta['formatter'])) $field->setFormatter($meta['formatter']);
@@ -726,7 +766,7 @@ class Query implements Countable {
 			$sortable = $sortable && $this->sortable;
 
 			if($visible):
-				$child = isset($meta['schema_name']) ? FormField::build($meta['schema_name'] . '.' . $meta['table_name'] . '.' . $meta['field_name']) : new \HTML\Form\Field\Span($field);
+				$child = isset($meta['schema_name']) ? FormField::build($meta['schema_name'] . '.' . $meta['table_name'] . '.' . $meta['field_name'], $meta ?: array()) : new \HTML\Form\Field\Span($field);
 				$child->setName($f);
 				if(isset($col[1])) $child->setLabel($col[1]);
 				$child->ordinal_position = $i; //Tracks the ordinal position of the column from the query
@@ -745,6 +785,37 @@ class Query implements Countable {
 	}
 
 	/**
+	 * Creates a data table out of the existing query using the field metadata
+	 * @return Table
+	 */
+	function returnTable(){
+
+		$dataset = new Table;
+
+		foreach($this->getColumnDefinitions() as $f => $col):
+
+			$meta = isset($col['meta']) ? $col['meta'] : null;
+
+			$field = isset($meta['field_name']) ? $meta['schema_name'] . '.' . $meta['table_name'] . '.' . $meta['field_name'] : $f;
+			$visible = isset($meta['is_visible']) ? $meta['is_visible'] : true;
+
+			if($visible):
+				$child = isset($meta['schema_name']) ? FormField::build($meta['schema_name'] . '.' . $meta['table_name'] . '.' . $meta['field_name'], $meta ?: array()) : new \HTML\Form\Field\Span($field);
+				$child->setName($f);
+				if(isset($col[1])) $child->setLabel($col[1]);
+				$dataset->addChild($child);
+				if(!empty($meta['formatter'])) $child->setFormatter($meta['formatter']);
+			endif;
+
+		endforeach;
+
+		$dataset->setValue($this->execute()->getRow());
+
+		return $dataset;
+
+	}
+
+	/**
 	 * Converts form data as labeled by getFormFields() into an array of data
 	 * per original source tables.
 	 * @param array $input set of data to translate (like $_POST)
@@ -753,10 +824,60 @@ class Query implements Countable {
 
 		$out = array();
 
+		$type = Utils::arrayType($input);
+
 		foreach($this->getColumnDefinitions() as $f => $col):
-			if(!$col['meta'] || !array_key_exists($f, $input)) continue;
+
+			if(!$col['meta']) continue;
+			if(empty($col['meta']['field_name'])) continue;
+
+			if($type == 'assoc'):
+
+				//Handle an associative array
+				if(!array_key_exists($f, $input)) continue;
+
 			$meta = $col['meta'];
+
+				//Handle FK-sourced autocompletes
+				//(Datasource autocompletes require more complex logic)
+				if($meta['field_class'] == 'Autocomplete' && $meta['fk_table_name'] && !$meta['datasource']):
+					Autocomplete::convertValue($input[$f], $this->db, $meta['fk_table_name']);
+				endif;
+
+				//Handle the id column
+				if($meta['field_name'] == 'id'):
+					if(intval($input[$f])) $input[$f] = intval($input[$f]);
+					else continue;
+				endif;
+
 			$out[$meta['schema_name'] . '.' . $meta['table_name']][$meta['field_name']] = $input[$f];
+
+			else:
+
+				//Handle indexed arrays
+				$meta = $col['meta'];
+
+				foreach($input as $key => $val):
+
+					if(!array_key_exists($f, $val)) continue;
+
+					//Handle FK-sourced autocompletes
+					//(Datasource autocompletes require more complex logic)
+					if($meta['field_class'] == 'Autocomplete' && $meta['fk_table_name'] && !$meta['datasource']):
+						Autocomplete::convertValue($val[$f], $this->db, $meta['fk_table_name']);
+					endif;
+
+					//Handle the id column
+					if($meta['field_name'] == 'id'):
+						if(intval($val[$f])) $val[$f] = intval($val[$f]);
+						else continue;
+					endif;
+
+					$out[$meta['schema_name'] . '.' . $meta['table_name']][$key][$meta['field_name']] = $val[$f];
+
+				endforeach;
+			endif;
+
 		endforeach;
 
 		return $out;
@@ -793,7 +914,7 @@ class Query implements Countable {
 		$ids = $id_query->execute()->getRow();
 
 		$mode = array(
-			"mode" => "UPDATE",
+			"mode" => "REPLACE",
 			"where" => "id = ?"
 		);
 
@@ -830,6 +951,17 @@ class Query implements Countable {
 	function getDB(){
 
 		return $this->db;
+
+	}
+
+	/**
+	 * Controls whether or not columns are automatically labeled
+	 * @param unknown_type $boolean
+	 */
+	function autolabelColumns($boolean){
+
+		$this->autolabel_columns = (boolean) $boolean;
+		return $this;
 
 	}
 

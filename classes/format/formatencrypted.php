@@ -9,6 +9,7 @@ class FormatEncrypted extends Format {
 	public $masked = true;
 
 	function raw($value){
+		if(!strlen($value)) return '';
 		return \Mcrypt::quickEncrypt($value);
 	}
 

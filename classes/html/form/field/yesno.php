@@ -16,7 +16,9 @@ class YesNo extends FormField implements iCascadeProperties {
 		$this->formatter = new FormatYesNo;
 		$this->container = with(new HGroup())
 			->addChildren(
-			array(with(new Radio($name, array('label' => 'Yes')))->setCheckedValue(1), with(new Radio($name, array('label' => 'No')))->setCheckedValue(0))
+				array(
+					with(new Radio($name, array('label' => 'Yes')))->setCheckedValue(1),
+					with(new Radio($name, array('label' => 'No')))->setCheckedValue(0))
 			)
 			->setLayoutManager(new RadioCheck())
 		;
@@ -27,14 +29,17 @@ class YesNo extends FormField implements iCascadeProperties {
 
 	}
 
+	function setName($name){
+		$this->cascadeProperties();
+		foreach($this->container->getChildren() as $child) $child->setName($name);
+		return parent::setName($name);
+	}
+
 	function setValue($value){
 		$this->cascadeProperties();
-		foreach($this->container->getChildren() as $child):
-			$child->setValue($value);
-			break;
-		endforeach;
-		$this->value = $value;
-		return $this;
+		$this->container->getChildAt(0)->setValue($value);
+		//$this->container->setValue(array($this->getName() => $value));
+		return parent::setValue($value);
 	}
 
 	function getValue($format_mode = null){
@@ -50,6 +55,15 @@ class YesNo extends FormField implements iCascadeProperties {
 		$container->name_prefix = $this->name_prefix;
 		$container->format_mode = $this->format_mode;
 		$container->cascadeProperties();
+	}
+
+	/**
+	 * When clone is used, clone all children as well
+	 */
+	public function __clone(){
+
+		$this->container = clone $this->container;
+
 	}
 
 	/**

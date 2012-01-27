@@ -853,9 +853,10 @@ class Database extends \PDO {
 	/**
 	 * Completes the current transaction
 	 * Issues a commit or rollback to the database on the last transaction
-	 * @return boolean indiciateing success
+	 * @param string $message A message to attach to the session upon success
+	 * @return boolean indicating success
 	 */
-	function completeTrans(){
+	function completeTrans($message = "Your changes have been saved successfully."){
 
 		//Ensure that we have at least one transaction pending
 		if(!$this->nested_transactions) return;
@@ -863,8 +864,16 @@ class Database extends \PDO {
 		//Do we actually need to attempt to commit the transaction?
 		if($this->nested_transactions === 1):
 
+			//Get the injector
+			$injector = Registry::get('injector');
+
 			//Check if transaction was marked for failure or attempt to commit it
-			if(!$this->good_trans || !parent::commit()):
+			if($injector->session->getMessages(Session::MSG_ERROR) || !$this->good_trans || !parent::commit()):
+
+				//Add a global error to the session space
+				if($this->errormsg()):
+					$injector->session->addError("Could not save to database: " . $this->errormsg(), true);
+				endif;
 
 				if($this->debug):
 					var_dump("Transaction failed: " . $this->errormsg());
@@ -879,6 +888,9 @@ class Database extends \PDO {
 			//Transaction was committed successfully
 			$this->nested_transactions--;
 			$this->good_trans = null;
+
+			//Add a global success
+			$injector->session->addSuccess($message, true);
 
 			if($this->debug):
 				var_dump("Transaction committed.");
@@ -1038,13 +1050,6 @@ class DatabaseStatement extends \PDOStatement implements \Countable {
 			$arr[array_shift($tmp[$i])] = count($tmp[$i]) > 1 ? $tmp[$i] : array_shift($tmp[$i]);
 		}
 		return $arr;
-	}
-
-	/**
-	 * Returns the number of rows returned by this statement
-	 */
-	function recordCount(){
-		return $this->rowCount();
 	}
 
 	/**

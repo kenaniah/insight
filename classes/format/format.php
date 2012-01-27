@@ -54,6 +54,14 @@ class Format {
 	}
 
 	/**
+	 * Sets the container value
+	 * @param array $container_value
+	 */
+	final function setContainerValue(array $container_value){
+		$this->container_value = $container_value;
+	}
+
+	/**
 	 * Boils the given value down to raw form
 	 * @param mixed $value
 	 */
